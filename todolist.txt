@@ -1,0 +1,3 @@
+1. Fix the issue of the file not downloading the transparent image properly onto the device (desktop/android)
+2. Fix the display on the android screen. It is WAY too zoomed in
+3. Understand why the segmentation model works on desktop but not on mobile

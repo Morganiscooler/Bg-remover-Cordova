@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Improved MediaPipe Background Removal</title>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.js"
+    crossorigin="anonymous"></script>
+  <style>
+    #outputCanvas {
+      border: 1px solid #ccc;
+      margin-top: 20px;
+    }
+
+    body {
+      font-family: Arial;
+      padding: 20px;
+    }
+
+    #status {
+      color: #666;
+      margin: 10px 0;
+    }
+
+    .container {
+      display: flex;
+      gap: 20px;
+    }
+
+    .original,
+    .result {
+      flex: 1;
+    }
+
+    #imageUpload {
+      display: none;
+      max-height: 100%;
+      max-width: 100%;
+    }
+
+    .canvas-segmentation {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+    #yay{
+      max-height: 100%;
+      max-width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <h2 style="font-size: 100px; text-align: center;"> Background Removal Tool</h2>
+  <input type="file" id="uploadFile" style="font-size: 60px;" accept="image/*" />
+  <div id="status" style="font-size: 50px;">Loading model...</div>
+
+  <div class="container">
+    <div class="original" style="display: none;">
+      <h3>Original</h3>
+      <img id="originalImage" style="max-width: 100%;" />
+    </div>
+    <div class="detectOnClick" id="result">
+      <h3 style="font-weight: 600; font-size: 55px;">Click to segment</h3>
+      <img id="imageUpload"  width="100%" crossorigin="anonymous" title="Click to segment image" />
+      <canvas class="outputCanvas" style="display: none;"></canvas>
+      <span class="click-point"></span>
+      <canvas id="yay"></canvas>
+      <div id="result" style="width: 500px; height: 100px;"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    function yay(event) {
+      console.log("yay");
+    }
+
+    import {
+      InteractiveSegmenter,
+      FilesetResolver,
+      MPMask
+    } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0";
+
+    let interSeg;
+
+    const createSegmenter = async () => {
+      const filesetResolver = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
+      );
+      interSeg = await InteractiveSegmenter.createFromOptions(
+        filesetResolver,
+        {
+          baseOptions: {
+            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/interactive_segmenter/magic_touch/float32/1/magic_touch.tflite`,
+            delegate: "GPU"
+          },
+          outputCategoryMask: true,
+          outputConfidenceMasks: false
+        }
+      );
+      //demosSection.classList.remove("invisible");
+    };
+    createSegmenter();
+
+
+    const imageContainers = document.getElementsByClassName("detectOnClick");
+    const uploadFile = document.getElementById("uploadFile");
+    const imageUpload = document.getElementById("imageUpload");
+
+    // Handle the upload file event
+    uploadFile.addEventListener("change", uploadedImage, false);
+
+    async function uploadedImage(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const img = await loadImage(file);
+      document.getElementById('originalImage').src = img.src;
+      console.log("yay1");
+
+      const reader = new FileReader();
+      reader.onload = function() {
+        const src = reader.result;
+        imageUpload.src = src;
+        imageUpload.style.display = "block";
+        const canvas = imageUpload.parentElement.getElementsByClassName(
+          "outputCanvas"
+        )[0];
+        const ctx = canvas.getContext("2d");
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const clickPoint = imageUpload.parentElement.getElementsByClassName(
+          "click-point"
+        )[0];
+        clickPoint.style.display = "none";
+      };
+      reader.readAsDataURL(event.target.files[0]);
+    }
+
+    function loadImage(file) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    // Handle clicks on the demo images
+    /*for (let i = 0; i < imageContainers.length; i++) {
+      imageContainers[i].children[0].addEventListener("click", handleClick);
+    }*/
+
+    document.getElementById("result").addEventListener("click", handleClick);
+
+    // Detect segmentation on click
+    async function handleClick(event) {
+      console.log("yay yay");
+      if (!interSeg) {
+        alert("InteractiveSegmenter still loading. Try again shortly.");
+        return;
+      }
+
+      interSeg.segment(
+        event.target,
+        {
+          keypoint: {
+            x: event.offsetX / event.target.width,
+            y: event.offsetY / event.target.height
+          }
+        },
+        (result) => {
+          drawSegmentation(result.categoryMask, event.target.parentElement);
+          //drawClickPoint(event.target.parentElement, event);
+
+          // Create a Blob 
+            const jsonString = JSON.stringify(result);
+            // console.log(jsonString);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+
+    
+          // Turn the Blob into a object URL
+            var url = URL.createObjectURL(blob);
+            console.log(url);
+
+            var resultDiv = document.getElementById("yay");
+
+            resultDiv.innerHTML = "";
+
+            var image = new Image();
+
+            image.src = url;
+
+            resultDiv.appendChild(image);
+
+            // Create download link
+
+            var link = document.createElement("a");
+
+            link.href = url;
+
+            link.download = "background_removed.png";
+
+            var span = document.createElement("span");
+
+            span.innerHTML = "Download <i class='fa fa-download'></i>";
+
+            span.style.display = "block";
+
+            span.style.position = "absolute";
+
+            span.style.marginTop = "-5%";
+
+            span.style.left = "25%";
+
+            span.style.fontSize = "80px";
+            span.style.fontWeight = "700";
+
+            span.style.color = "red";
+
+            link.appendChild(span);
+            document.getElementById("result").appendChild(link);
+
+            // Make it downloadable + able to download multiple times
+            async function getUniqueFilename(dirEntry, baseName, extension) {
+            return new Promise((resolve) => {
+                let counter = 1;
+                let newName = baseName + extension;
+
+                function checkFile() {
+                    dirEntry.getFile(newName, { create: false }, () => {
+                        // File exists, try next number
+                        newName = `${baseName}_${counter}${extension}`;
+                        counter++;
+                        checkFile(); // Recursively check again
+                    }, () => {
+                        // File does not exist, use this name
+                        resolve(newName);
+                    });
+                }
+
+                checkFile(); // Start checking
+            });
+        }
+  
+  async function blobUrlToBase64(blobUrl) {
+    const response = await fetch(blobUrl);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(',')[1]); // Extract base64 part
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+async function downloadBase64Image(base64Data, filename = 'downloaded_image') {
+  try {
+      // Ensure filename has no extension (we'll add it later)
+      const baseName = filename.replace(/\.[^/.]+$/, ""); // Remove existing extension
+      const extension = '.png';
+
+      // Get the Downloads directory path (Android)
+      const downloadsDir = cordova.file.externalRootDirectory + 'Download/';
+
+      // Resolve the directory
+      const dirEntry = await new Promise((resolve, reject) => {
+          window.resolveLocalFileSystemURL(downloadsDir, resolve, reject);
+      });
+
+      // Get a unique filename (e.g., "downloaded_image_1.png")
+      const uniqueFilename = await getUniqueFilename(dirEntry, baseName, extension);
+
+      // Write the file
+      const fileEntry = await new Promise((resolve, reject) => {
+          dirEntry.getFile(uniqueFilename, { create: true }, resolve, reject);
+      });
+
+      const fileWriter = await new Promise((resolve, reject) => {
+          fileEntry.createWriter(resolve, reject);
+      });
+
+      fileWriter.onwriteend = () => {
+          console.log(`Image saved as: ${uniqueFilename}`);
+          // Optionally open the file
+          cordova.plugins.fileOpener2.open(
+              fileEntry.toURL(),
+              'image/png',
+              { error: (e) => console.error('Error opening file:', e) }
+          );
+      };
+
+      fileWriter.onerror = (e) => console.error('Error writing file:', e);
+
+      // Convert base64 to a Blob and write
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/png' });
+
+      fileWriter.write(blob);
+  } catch (e) {
+      console.error('Error:', e);
+  }
+}
+
+link.addEventListener("click", async () => {
+  const blobUrl = url; // e.g., from camera or fetched data
+  const base64Data = await blobUrlToBase64(blobUrl);
+//   console.log(base64Data);
+  await downloadBase64Image(base64Data, 'downloaded_image.png');
+  alert('Image downloaded successfully! Check your downloads folder.');
+});
+ 
+
+        }
+      );
+    }
+
+    const result = document.getElementById("yay");
+
+    // Draw segmentation result
+    function drawSegmentation(mask, targetElement) {
+      const width = mask.width;
+      const height = mask.height;
+      const maskData = mask.getAsFloat32Array();
+      const canvas = targetElement.getElementsByClassName(
+        "outputCanvas"
+      )[0];
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+
+      ctx.drawImage(imageUpload, 0, 0, canvas.width, canvas.height);
+
+      console.log("Start visualization");
+
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const actualImageData = imageData.data;
+
+      result.width = width;
+      result.height = height;
+      const resultCtx = result.getContext('2d');
+
+      maskData.map((category, index) => {
+        const x = (index + 1) % width;
+        const y = (index + 1 - x) / width;
+        if (Math.round(category * 255.0) === 0) {
+          const red = actualImageData[index * 4];
+          const blue = actualImageData[index * 4 + 1];
+          const green = actualImageData[index * 4 + 2];
+          resultCtx.fillStyle = `rgb(${red}, ${blue}, ${green})`;
+          resultCtx.fillRect(x, y, 1, 1);
+        } else {
+          resultCtx.fillStyle = `rgba(0,0,0,0)`;
+          resultCtx.fillRect(x, y, 1, 1);
+        }
+      });
+    }
+  </script>
+  
+</body>
+
+</html>
