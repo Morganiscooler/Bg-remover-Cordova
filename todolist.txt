@@ -1,3 +1,7 @@
-1. Fix the issue of the file not downloading the transparent image properly onto the device (desktop/android)
-2. Fix the display on the android screen. It is WAY too zoomed in
-3. Understand why the segmentation model works on desktop but not on mobile
+1. Fix the issue of the file not downloading the transparent image properly onto the device (desktop/android) (Solved)
+2. Fix the display on the android screen. It is WAY too zoomed in (Solved)
+
+3. Understand why the segmentation model works on desktop but not on mobile 
+Theory on why problem #3 isn't working:
+    Model does not produce a transparent image -> no result argument/variable is passed -> no blob is generated -> because there is no blob, no base64 can be downloaded
+    Potential solution: Fix the reason why the image produced is duplicated 
